@@ -1,3 +1,12 @@
+###
+@name jquery-columnagram
+@description Reinvent the columnizer.
+@version 1.0.1
+@author Se7enSky studio <info@se7ensky.com>
+###
+
+###! jquery-columnagram 1.0.1 http://github.com/Se7enSky/jquery-columnagram###
+
 plugin = ($) ->
 
 	"use strict"
@@ -57,6 +66,8 @@ plugin = ($) ->
 			result
 
 		columnize: ($children = null) ->
+			return if @config.balanceMethod is "balanceHeight" and @$el.innerHeight() is 0
+			
 			columnCount = @config.columns
 			$children = @$el.children() if not $children
 
