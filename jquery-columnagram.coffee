@@ -1,11 +1,11 @@
 ###
 @name jquery-columnagram
 @description Reinvent the columnizer.
-@version 1.0.5
+@version 1.1.0
 @author Se7enSky studio <info@se7ensky.com>
 ###
 
-###! jquery-columnagram 1.0.5 http://github.com/Se7enSky/jquery-columnagram###
+###! jquery-columnagram 1.1.0 http://github.com/Se7enSky/jquery-columnagram###
 
 plugin = ($) ->
 
@@ -75,6 +75,7 @@ plugin = ($) ->
 			result
 
 		balanceItemsIntoChunksOptimal: (items, weights, chunkCount) ->
+			return items if chunkCount is 1
 			chunks = @balanceItemsIntoChunksByWeight items, weights, chunkCount
 			chunkWeights = @calculateWeights chunks, weights
 			maxWeight = Math.max chunkWeights...
@@ -96,7 +97,7 @@ plugin = ($) ->
 
 		columnize: ->
 			return if @columnized
-			return if @config.balanceMethod is "balanceHeight" and @$el.innerHeight() is 0
+			return if (@config.balanceMethod in ["balanceHeight", "optimal"]) and @$el.innerHeight() is 0
 			
 			columnCount = @config.columns
 			$children = @$el.children()
@@ -116,12 +117,12 @@ plugin = ($) ->
 			for chunk in chunks
 				$column = $("<div></div>").css
 					float: "left"
-					width: "#{Math.floor 100 / columnCount}%"
+					width: "#{Math.floor 100 / chunks.length}%"
 				$column.append chunk
 				@$el.append $column
 
 			@$el.trigger "columnagram.columnized", 
-				columns: columnCount
+				columns: chunks.length
 			@columnized = yes
 
 		decolumnize: ->
