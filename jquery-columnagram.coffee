@@ -1,11 +1,11 @@
 ###
 @name jquery-columnagram
 @description Reinvent the columnizer.
-@version 1.0.1
+@version 1.0.5
 @author Se7enSky studio <info@se7ensky.com>
 ###
 
-###! jquery-columnagram 1.0.1 http://github.com/Se7enSky/jquery-columnagram###
+###! jquery-columnagram 1.0.5 http://github.com/Se7enSky/jquery-columnagram###
 
 plugin = ($) ->
 
@@ -15,33 +15,41 @@ plugin = ($) ->
 		defaults:
 			columns: 'auto'
 			# balanceMethod: 'balanceCount'
-			balanceMethod: 'balanceHeight'
+			# balanceMethod: 'balanceHeight'
+			balanceMethod: 'optimal'
 			minWeightRepeats: 10
 
 		constructor: (@el, config) ->
 			@$el = $ @el
 			@config = $.extend {}, @defaults, config
+			
+			@columnized = no
+
 			@columnize()
 
 		destroy: ->
 			@decolumnize()
 
+		calculateWeights: (chunks, weights) ->
+			i = 0
+			for chunk in chunks
+				chunkWeight = 0
+				chunkWeight += weights[j] for j in [i..i+chunk.length-1]
+				i += chunk.length
+				chunkWeight or 0
+
 		balanceItemsIntoChunksByWeight: (items, weights, chunkCount) ->
+			return items if chunkCount is 1
 			chunks = @balanceItemsIntoChunksByCount items, chunkCount
-			calculateWeights = ->
-				i = 0
-				for chunk in chunks
-					chunkWeight = 0
-					chunkWeight += weights[j] for j in [i..i+chunk.length-1]
-					i += chunk.length
-					chunkWeight
+			return chunks if items.length is chunkCount
 
 			minWeight = 10000000
 			minWeightRepeats = 0
 			# t = 1
 			while true
 				# console.log t++, minWeightRepeats, minWeight
-				chunkWeights = calculateWeights()
+				chunkWeights = @calculateWeights chunks, weights
+				# console.log chunkWeights
 				maxWeight = Math.max chunkWeights...
 				if maxWeight < minWeight
 					minWeight = maxWeight
@@ -50,26 +58,48 @@ plugin = ($) ->
 					minWeightRepeats++
 					return chunks if minWeightRepeats is @config.minWeightRepeats
 				maxWeightChunkIndex = chunkWeights.indexOf maxWeight
+
 				if maxWeightChunkIndex is 0 # first
-					chunks[maxWeightChunkIndex+1].unshift chunks[maxWeightChunkIndex].pop()
-				else if maxWeightChunkIndex is chunkWeights.length - 1 # last
-					chunks[maxWeightChunkIndex-1].push chunks[maxWeightChunkIndex].shift()
-				else
 					chunks[maxWeightChunkIndex+1].unshift chunks[maxWeightChunkIndex].pop() if chunks[maxWeightChunkIndex].length > 1
+				else if maxWeightChunkIndex is chunkWeights.length - 1 # last
 					chunks[maxWeightChunkIndex-1].push chunks[maxWeightChunkIndex].shift() if chunks[maxWeightChunkIndex].length > 1
+				else
+					chunks[maxWeightChunkIndex+1].unshift chunks[maxWeightChunkIndex].pop() if chunks[maxWeightChunkIndex].length > 1 and Math.random() > 0.3
+					chunks[maxWeightChunkIndex-1].push chunks[maxWeightChunkIndex].shift() if chunks[maxWeightChunkIndex].length > 1 and Math.random() > 0.3
 
 		balanceItemsIntoChunksByCount: (items, chunkCount) ->
 			result = []
-			perChunk = Math.round items.length / chunkCount
+			perChunk = Math.ceil items.length / chunkCount
 			for chunkIndex in [0..chunkCount-1]
 				result.push items.slice chunkIndex * perChunk, (chunkIndex + 1) * perChunk
 			result
 
-		columnize: ($children = null) ->
+		balanceItemsIntoChunksOptimal: (items, weights, chunkCount) ->
+			chunks = @balanceItemsIntoChunksByWeight items, weights, chunkCount
+			chunkWeights = @calculateWeights chunks, weights
+			maxWeight = Math.max chunkWeights...
+			chunks = []
+			chunk = []
+			chunkWeight = 0
+			i = 0
+			while items.length > 0
+				if weights[i] + chunkWeight <= maxWeight
+					chunk.push items.shift()
+					chunkWeight += weights[i]
+					i++
+				else
+					chunks.push chunk
+					chunk = []
+					chunkWeight = 0
+			chunks.push chunk
+			chunks
+
+		columnize: ->
+			return if @columnized
 			return if @config.balanceMethod is "balanceHeight" and @$el.innerHeight() is 0
 			
 			columnCount = @config.columns
-			$children = @$el.children() if not $children
+			$children = @$el.children()
 
 			chunks = switch @config.balanceMethod
 				when "balanceHeight"
@@ -77,6 +107,9 @@ plugin = ($) ->
 					@balanceItemsIntoChunksByWeight $children.toArray(), heights, columnCount
 				when "balanceCount"
 					@balanceItemsIntoChunksByCount $children, columnCount
+				when "optimal"
+					heights = ($(child).outerHeight() for child in $children)
+					@balanceItemsIntoChunksOptimal $children.toArray(), heights, columnCount
 			
 			@$el.empty()
 
@@ -87,16 +120,20 @@ plugin = ($) ->
 				$column.append chunk
 				@$el.append $column
 
-		decolumnize: (recolumnizing = no) ->
+			@$el.trigger "columnagram.columnized", 
+				columns: columnCount
+			@columnized = yes
+
+		decolumnize: ->
+			return unless @columnized
 			$children = @$el.find("> div").children()
 			@$el.find("> div").remove()
-			if recolumnizing
-				$children
-			else
-				@$el.append $children
+			@$el.append $children
+			@columnized = no
 
 		recolumnize: ->
-			@columnize @decolumnize yes
+			@decolumnize()
+			@columnize()
 
 	$.fn.columnagram = (method, args...) ->
 		@each ->
