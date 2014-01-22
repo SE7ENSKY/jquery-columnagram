@@ -1,11 +1,11 @@
 ###
 @name jquery-columnagram
 @description Reinvent the columnizer.
-@version 1.1.0
+@version 1.2.8
 @author Se7enSky studio <info@se7ensky.com>
 ###
 
-###! jquery-columnagram 1.1.0 http://github.com/Se7enSky/jquery-columnagram###
+###! jquery-columnagram 1.2.8 http://github.com/Se7enSky/jquery-columnagram###
 
 plugin = ($) ->
 
@@ -17,7 +17,7 @@ plugin = ($) ->
 			# balanceMethod: 'balanceCount'
 			# balanceMethod: 'balanceHeight'
 			balanceMethod: 'optimal'
-			minWeightRepeats: 10
+			minWeightRepeats: 100
 
 		constructor: (@el, config) ->
 			@$el = $ @el
@@ -37,6 +37,13 @@ plugin = ($) ->
 				chunkWeight += weights[j] for j in [i..i+chunk.length-1]
 				i += chunk.length
 				chunkWeight or 0
+
+		balanceItemsIntoChunksByCount: (items, chunkCount) ->
+			result = []
+			perChunk = Math.ceil items.length / chunkCount
+			for chunkIndex in [0..chunkCount-1]
+				result.push items.slice chunkIndex * perChunk, (chunkIndex + 1) * perChunk
+			result
 
 		balanceItemsIntoChunksByWeight: (items, weights, chunkCount) ->
 			return items if chunkCount is 1
@@ -67,13 +74,6 @@ plugin = ($) ->
 					chunks[maxWeightChunkIndex+1].unshift chunks[maxWeightChunkIndex].pop() if chunks[maxWeightChunkIndex].length > 1 and Math.random() > 0.3
 					chunks[maxWeightChunkIndex-1].push chunks[maxWeightChunkIndex].shift() if chunks[maxWeightChunkIndex].length > 1 and Math.random() > 0.3
 
-		balanceItemsIntoChunksByCount: (items, chunkCount) ->
-			result = []
-			perChunk = Math.ceil items.length / chunkCount
-			for chunkIndex in [0..chunkCount-1]
-				result.push items.slice chunkIndex * perChunk, (chunkIndex + 1) * perChunk
-			result
-
 		balanceItemsIntoChunksOptimal: (items, weights, chunkCount) ->
 			return items if chunkCount is 1
 			chunks = @balanceItemsIntoChunksByWeight items, weights, chunkCount
@@ -96,30 +96,44 @@ plugin = ($) ->
 			chunks
 
 		columnize: ->
+			cssHeight = (el) ->
+				cssValue = (name) -> parseFloat $(el).css(name).replace("px", "")
+				cssValue("height") + cssValue("margin-bottom") + cssValue("margin-top") + cssValue("border-top-width") + cssValue("border-bottom-width")
+
 			return if @columnized
 			return if (@config.balanceMethod in ["balanceHeight", "optimal"]) and @$el.innerHeight() is 0
-			
+
 			columnCount = @config.columns
-			$children = @$el.children()
+			children = @$el.children().toArray()
+			heightsAreSame = no
+			heights = (cssHeight(child) for child in children)
 
-			chunks = switch @config.balanceMethod
-				when "balanceHeight"
-					heights = ($(child).outerHeight() for child in $children)
-					@balanceItemsIntoChunksByWeight $children.toArray(), heights, columnCount
-				when "balanceCount"
-					@balanceItemsIntoChunksByCount $children, columnCount
-				when "optimal"
-					heights = ($(child).outerHeight() for child in $children)
-					@balanceItemsIntoChunksOptimal $children.toArray(), heights, columnCount
-			
-			@$el.empty()
+			while not heightsAreSame
+				chunks = switch @config.balanceMethod
+					when "balanceHeight" then @balanceItemsIntoChunksByWeight children, heights, columnCount
+					when "balanceCount" then @balanceItemsIntoChunksByCount children, columnCount
+					when "optimal" then @balanceItemsIntoChunksOptimal children, heights, columnCount
+				
+				@$el.empty().append (for chunk in chunks
+					$("<div>")
+						.css
+							float: "left"
+							width: "#{Math.floor 100 / chunks.length}%"
+						.append chunk
+				)
 
-			for chunk in chunks
-				$column = $("<div></div>").css
-					float: "left"
-					width: "#{Math.floor 100 / chunks.length}%"
-				$column.append chunk
-				@$el.append $column
+				newHeights = (cssHeight(child) for child in @$el.find "> div > *")
+
+				heightsAreSame = yes
+				for i in [0..heights.length]
+					if heights[i] isnt newHeights[i]
+						heightsAreSame = no
+						break
+
+				if not heightsAreSame
+					heights = newHeights
+					children = @$el.find("> div > *").toArray()
+					@$el.find("> div").remove()
 
 			@$el.trigger "columnagram.columnized", 
 				columns: chunks.length
