@@ -1,11 +1,11 @@
 ###
 @name jquery-columnagram
 @description Reinvent the columnizer.
-@version 1.2.8
+@version 1.2.12
 @author Se7enSky studio <info@se7ensky.com>
 ###
 
-###! jquery-columnagram 1.2.8 http://github.com/Se7enSky/jquery-columnagram###
+###! jquery-columnagram 1.2.12 http://github.com/Se7enSky/jquery-columnagram###
 
 plugin = ($) ->
 
@@ -18,6 +18,7 @@ plugin = ($) ->
 			# balanceMethod: 'balanceHeight'
 			balanceMethod: 'optimal'
 			minWeightRepeats: 100
+			minColumnWidth: off
 
 		constructor: (@el, config) ->
 			@$el = $ @el
@@ -104,6 +105,9 @@ plugin = ($) ->
 			return if (@config.balanceMethod in ["balanceHeight", "optimal"]) and @$el.innerHeight() is 0
 
 			columnCount = @config.columns
+			if @config.minColumnWidth
+				columnCount -= 1 while columnCount > 1 and @$el.width() / columnCount < @config.minColumnWidth
+			return if columnCount <= 1
 			children = @$el.children().toArray()
 			heightsAreSame = no
 			heights = (cssHeight(child) for child in children)
